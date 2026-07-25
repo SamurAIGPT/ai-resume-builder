@@ -14,6 +14,10 @@ export async function GET(req) {
     const { searchParams } = new URL(req.url);
     const id = searchParams.get("id");
 
+    const headerApiKey = req.headers.get("x-custom-api-key");
+    const customApiKey = headerApiKey || session.user.customApiKey || null;
+    const apiKey = (customApiKey && customApiKey.trim().length > 0) ? customApiKey.trim() : config.ai.apiKey;
+
     if (id) {
       const resume = await prisma.resume.findUnique({
         where: { id, userId: session.user.id }
@@ -24,7 +28,7 @@ export async function GET(req) {
       if (resume.status === "processing" && resume.requestId && !resume.requestId.startsWith("mock_")) {
         try {
           const checkRes = await fetch(`https://api.muapi.ai/api/v1/predictions/${resume.requestId}/result`, {
-            headers: { "x-api-key": config.ai.apiKey }
+            headers: { "x-api-key": apiKey }
           });
           if (checkRes.ok) {
             const checkJson = await checkRes.json();
@@ -77,7 +81,7 @@ export async function GET(req) {
       if (resume.status === "processing" && resume.requestId && !resume.requestId.startsWith("mock_")) {
         try {
           const checkRes = await fetch(`https://api.muapi.ai/api/v1/predictions/${resume.requestId}/result`, {
-            headers: { "x-api-key": config.ai.apiKey }
+            headers: { "x-api-key": apiKey }
           });
           if (checkRes.ok) {
             const checkJson = await checkRes.json();

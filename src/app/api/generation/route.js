@@ -242,15 +242,22 @@ export async function POST(req) {
       ? JSON.parse(structuredData) 
       : structuredData;
 
-    // 1. Deduct credits
-    const cost = config.ai.generationCost || 18;
-    try {
-      await UserService.deductCredits(session.user.id, cost);
-    } catch (err) {
-      return new NextResponse("Insufficient credits", { status: 402 });
+    const headerApiKey = req.headers.get("x-custom-api-key");
+    const customApiKey = headerApiKey || body.customApiKey || session.user.customApiKey || null;
+    const isUsingCustomKey = Boolean(customApiKey && customApiKey.trim().length > 0);
+
+    // Cost logic: 18 credits (0 if custom API key active)
+    const cost = isUsingCustomKey ? 0 : (config.ai.generationCost || 18);
+
+    if (!isUsingCustomKey && cost > 0) {
+      try {
+        await UserService.deductCredits(session.user.id, cost);
+      } catch (err) {
+        return new NextResponse("Insufficient credits", { status: 402 });
+      }
     }
 
-    const apiKey = config.ai.apiKey;
+    const apiKey = isUsingCustomKey ? customApiKey.trim() : config.ai.apiKey;
     let resultImage = ""; // Using resultImage field as the generated HTML
     let requestId = `mock_${Date.now()}`;
     let status = "processing";
@@ -324,7 +331,7 @@ YOUR INSTRUCTIONS:
         });
 
         if (submitRes.ok) {
-          const resJson = await submitRes.ok ? await submitRes.json() : {};
+          const resJson = await submitRes.json();
           if (resJson.request_id) {
             requestId = resJson.request_id;
 
